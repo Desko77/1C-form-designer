@@ -1,0 +1,71 @@
+{
+  "name": "1c-form-designer",
+  "displayName": "1C Form Designer",
+  "description": "Visual designer for 1C managed forms",
+  "version": "0.1.0",
+  "publisher": "1c-form-designer",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "formDesigner.managedForm",
+        "displayName": "1C Form Designer",
+        "selector": [
+          { "filenamePattern": "**/Ext/Form.xml" },
+          { "filenamePattern": "*.form.xml" }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "formDesigner.previewDiff",
+        "title": "Preview XML Diff",
+        "category": "Form Designer"
+      }
+    ],
+    "configuration": {
+      "title": "1C Form Designer",
+      "properties": {
+        "formDesigner.formattingMode": {
+          "type": "string",
+          "default": "preserve",
+          "enum": ["preserve", "canonical"],
+          "description": "XML formatting mode: preserve original or canonical"
+        },
+        "formDesigner.maxUndo": {
+          "type": "number",
+          "default": 200,
+          "description": "Maximum undo stack size"
+        },
+        "formDesigner.defaultView": {
+          "type": "string",
+          "default": "design",
+          "enum": ["design", "structure", "source"],
+          "description": "Default view mode when opening a form"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "package": "npx @vscode/vsce package"
+  },
+  "dependencies": {
+    "@1c-form-designer/core-form": "0.1.0",
+    "@1c-form-designer/shared": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  }
+}

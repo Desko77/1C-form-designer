@@ -1,0 +1,634 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ManagedForm xmlns="http://v8.1c.ru/8.3/xcf/managed"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:xs="http://www.w3.org/2001/XMLSchema"
+             xmlns:xr="http://v8.1c.ru/8.3/xcf/readable">
+  <AutoTitle>true</AutoTitle>
+  <Title>Заказ покупателя</Title>
+
+  <!-- ====== Attributes ====== -->
+  <Attributes>
+    <Attribute>
+      <Name>Объект</Name>
+      <Id>0</Id>
+      <ValueType>
+        <Type>DocumentObject.ЗаказПокупателя</Type>
+      </ValueType>
+      <SavedData>true</SavedData>
+    </Attribute>
+    <Attribute>
+      <Name>ИтогоСумма</Name>
+      <Id>1</Id>
+      <ValueType>
+        <Type xs:type="xs:string">Number</Type>
+      </ValueType>
+    </Attribute>
+    <Attribute>
+      <Name>ИтогоКоличество</Name>
+      <Id>2</Id>
+      <ValueType>
+        <Type xs:type="xs:string">Number</Type>
+      </ValueType>
+    </Attribute>
+    <Attribute>
+      <Name>КурсВалюты</Name>
+      <Id>3</Id>
+      <ValueType>
+        <Type xs:type="xs:string">Number</Type>
+      </ValueType>
+    </Attribute>
+  </Attributes>
+
+  <!-- ====== Elements ====== -->
+  <Elements>
+    <!-- Top-level command bar -->
+    <UsualGroup>
+      <Name>ГруппаКоманднаяПанель</Name>
+      <Id>100</Id>
+      <Title>Командная панель</Title>
+      <Group>Horizontal</Group>
+      <Representation>None</Representation>
+      <Elements>
+        <Button>
+          <Name>КнопкаПровести</Name>
+          <Id>101</Id>
+          <Title>Провести</Title>
+          <CommandName>Провести</CommandName>
+          <Representation>Auto</Representation>
+          <DefaultButton>true</DefaultButton>
+        </Button>
+        <Button>
+          <Name>КнопкаПровестиИЗакрыть</Name>
+          <Id>102</Id>
+          <Title>Провести и закрыть</Title>
+          <CommandName>ПровестиИЗакрыть</CommandName>
+        </Button>
+        <Button>
+          <Name>КнопкаПечать</Name>
+          <Id>103</Id>
+          <Title>Печать</Title>
+          <CommandName>Печать</CommandName>
+        </Button>
+      </Elements>
+    </UsualGroup>
+
+    <!-- Pages / Tabs -->
+    <Pages>
+      <Name>СтраницыОсновные</Name>
+      <Id>200</Id>
+      <Title>Основные страницы</Title>
+      <PagesRepresentation>TabsOnTop</PagesRepresentation>
+      <Elements>
+
+        <!-- ===== Page 1: Шапка ===== -->
+        <Page>
+          <Name>СтраницаШапка</Name>
+          <Id>210</Id>
+          <Title>Шапка</Title>
+          <Group>Vertical</Group>
+          <Elements>
+            <UsualGroup>
+              <Name>ГруппаНомерДата</Name>
+              <Id>211</Id>
+              <Title>Номер и дата</Title>
+              <Group>Horizontal</Group>
+              <Representation>NormalSeparation</Representation>
+              <Elements>
+                <InputField>
+                  <Name>Номер</Name>
+                  <Id>212</Id>
+                  <Title>Номер</Title>
+                  <DataPath>Объект.Номер</DataPath>
+                  <Width>15</Width>
+                  <ReadOnly>true</ReadOnly>
+                </InputField>
+                <InputField>
+                  <Name>Дата</Name>
+                  <Id>213</Id>
+                  <Title>Дата</Title>
+                  <DataPath>Объект.Дата</DataPath>
+                  <Width>15</Width>
+                </InputField>
+              </Elements>
+            </UsualGroup>
+
+            <UsualGroup>
+              <Name>ГруппаКонтрагент</Name>
+              <Id>214</Id>
+              <Title>Контрагент</Title>
+              <Group>Vertical</Group>
+              <Representation>NormalSeparation</Representation>
+              <Elements>
+                <InputField>
+                  <Name>Контрагент</Name>
+                  <Id>215</Id>
+                  <Title>Контрагент</Title>
+                  <DataPath>Объект.Контрагент</DataPath>
+                  <Width>40</Width>
+                  <HorizontalStretch>true</HorizontalStretch>
+                  <ChoiceButton>true</ChoiceButton>
+                  <OpenButton>true</OpenButton>
+                </InputField>
+                <InputField>
+                  <Name>ДоговорКонтрагента</Name>
+                  <Id>216</Id>
+                  <Title>Договор</Title>
+                  <DataPath>Объект.ДоговорКонтрагента</DataPath>
+                  <Width>40</Width>
+                  <HorizontalStretch>true</HorizontalStretch>
+                  <ChoiceButton>true</ChoiceButton>
+                </InputField>
+                <InputField>
+                  <Name>Организация</Name>
+                  <Id>217</Id>
+                  <Title>Организация</Title>
+                  <DataPath>Объект.Организация</DataPath>
+                  <Width>40</Width>
+                  <HorizontalStretch>true</HorizontalStretch>
+                </InputField>
+              </Elements>
+            </UsualGroup>
+
+            <UsualGroup>
+              <Name>ГруппаВалюта</Name>
+              <Id>218</Id>
+              <Title>Валюта и курс</Title>
+              <Group>Horizontal</Group>
+              <Representation>NormalSeparation</Representation>
+              <Elements>
+                <InputField>
+                  <Name>Валюта</Name>
+                  <Id>219</Id>
+                  <Title>Валюта</Title>
+                  <DataPath>Объект.Валюта</DataPath>
+                  <Width>15</Width>
+                  <ChoiceButton>true</ChoiceButton>
+                </InputField>
+                <InputField>
+                  <Name>КурсВалюты</Name>
+                  <Id>220</Id>
+                  <Title>Курс</Title>
+                  <DataPath>КурсВалюты</DataPath>
+                  <Width>10</Width>
+                  <ReadOnly>true</ReadOnly>
+                </InputField>
+              </Elements>
+            </UsualGroup>
+
+            <InputField>
+              <Name>Склад</Name>
+              <Id>221</Id>
+              <Title>Склад</Title>
+              <DataPath>Объект.Склад</DataPath>
+              <Width>30</Width>
+              <HorizontalStretch>true</HorizontalStretch>
+              <ChoiceButton>true</ChoiceButton>
+            </InputField>
+
+            <InputField>
+              <Name>Ответственный</Name>
+              <Id>222</Id>
+              <Title>Ответственный</Title>
+              <DataPath>Объект.Ответственный</DataPath>
+              <Width>30</Width>
+              <HorizontalStretch>true</HorizontalStretch>
+            </InputField>
+          </Elements>
+        </Page>
+
+        <!-- ===== Page 2: Товары ===== -->
+        <Page>
+          <Name>СтраницаТовары</Name>
+          <Id>300</Id>
+          <Title>Товары</Title>
+          <Group>Vertical</Group>
+          <Elements>
+            <Table>
+              <Name>Товары</Name>
+              <Id>301</Id>
+              <Title>Товары</Title>
+              <DataPath>Объект.Товары</DataPath>
+              <HorizontalStretch>true</HorizontalStretch>
+              <VerticalStretch>true</VerticalStretch>
+              <Height>10</Height>
+              <CommandBar>
+                <Name>ТоварыКоманднаяПанель</Name>
+                <Id>302</Id>
+                <Elements>
+                  <Button>
+                    <Name>ТоварыДобавить</Name>
+                    <Id>303</Id>
+                    <Title>Добавить</Title>
+                    <CommandName>ТоварыДобавитьСтроку</CommandName>
+                  </Button>
+                  <Button>
+                    <Name>ТоварыУдалить</Name>
+                    <Id>304</Id>
+                    <Title>Удалить</Title>
+                    <CommandName>ТоварыУдалитьСтроку</CommandName>
+                  </Button>
+                  <Button>
+                    <Name>ТоварыПодбор</Name>
+                    <Id>305</Id>
+                    <Title>Подбор</Title>
+                    <CommandName>ПодборТоваров</CommandName>
+                  </Button>
+                </Elements>
+              </CommandBar>
+              <Columns>
+                <InputField>
+                  <Name>ТоварыНоменклатура</Name>
+                  <Id>306</Id>
+                  <Title>Номенклатура</Title>
+                  <DataPath>Объект.Товары.Номенклатура</DataPath>
+                  <Width>30</Width>
+                  <ChoiceButton>true</ChoiceButton>
+                </InputField>
+                <InputField>
+                  <Name>ТоварыКоличество</Name>
+                  <Id>307</Id>
+                  <Title>Количество</Title>
+                  <DataPath>Объект.Товары.Количество</DataPath>
+                  <Width>10</Width>
+                </InputField>
+                <InputField>
+                  <Name>ТоварыЕдиницаИзмерения</Name>
+                  <Id>308</Id>
+                  <Title>Ед. изм.</Title>
+                  <DataPath>Объект.Товары.ЕдиницаИзмерения</DataPath>
+                  <Width>10</Width>
+                </InputField>
+                <InputField>
+                  <Name>ТоварыЦена</Name>
+                  <Id>309</Id>
+                  <Title>Цена</Title>
+                  <DataPath>Объект.Товары.Цена</DataPath>
+                  <Width>12</Width>
+                </InputField>
+                <InputField>
+                  <Name>ТоварыСумма</Name>
+                  <Id>310</Id>
+                  <Title>Сумма</Title>
+                  <DataPath>Объект.Товары.Сумма</DataPath>
+                  <Width>12</Width>
+                  <ReadOnly>true</ReadOnly>
+                </InputField>
+                <InputField>
+                  <Name>ТоварыСтавкаНДС</Name>
+                  <Id>311</Id>
+                  <Title>Ставка НДС</Title>
+                  <DataPath>Объект.Товары.СтавкаНДС</DataPath>
+                  <Width>10</Width>
+                </InputField>
+                <InputField>
+                  <Name>ТоварыСуммаНДС</Name>
+                  <Id>312</Id>
+                  <Title>Сумма НДС</Title>
+                  <DataPath>Объект.Товары.СуммаНДС</DataPath>
+                  <Width>12</Width>
+                  <ReadOnly>true</ReadOnly>
+                </InputField>
+              </Columns>
+            </Table>
+
+            <UsualGroup>
+              <Name>ГруппаИтоги</Name>
+              <Id>320</Id>
+              <Title>Итоги</Title>
+              <Group>Horizontal</Group>
+              <Representation>NormalSeparation</Representation>
+              <Elements>
+                <InputField>
+                  <Name>ИтогоКоличество</Name>
+                  <Id>321</Id>
+                  <Title>Итого количество</Title>
+                  <DataPath>ИтогоКоличество</DataPath>
+                  <Width>12</Width>
+                  <ReadOnly>true</ReadOnly>
+                </InputField>
+                <InputField>
+                  <Name>ИтогоСумма</Name>
+                  <Id>322</Id>
+                  <Title>Итого сумма</Title>
+                  <DataPath>ИтогоСумма</DataPath>
+                  <Width>15</Width>
+                  <ReadOnly>true</ReadOnly>
+                </InputField>
+              </Elements>
+            </UsualGroup>
+          </Elements>
+        </Page>
+
+        <!-- ===== Page 3: Дополнительно ===== -->
+        <Page>
+          <Name>СтраницаДополнительно</Name>
+          <Id>400</Id>
+          <Title>Дополнительно</Title>
+          <Group>Vertical</Group>
+          <Elements>
+            <UsualGroup>
+              <Name>ГруппаДоставка</Name>
+              <Id>401</Id>
+              <Title>Доставка</Title>
+              <Group>Vertical</Group>
+              <Representation>StrongSeparation</Representation>
+              <Elements>
+                <InputField>
+                  <Name>АдресДоставки</Name>
+                  <Id>402</Id>
+                  <Title>Адрес доставки</Title>
+                  <DataPath>Объект.АдресДоставки</DataPath>
+                  <Width>60</Width>
+                  <HorizontalStretch>true</HorizontalStretch>
+                </InputField>
+                <InputField>
+                  <Name>ДатаОтгрузки</Name>
+                  <Id>403</Id>
+                  <Title>Дата отгрузки</Title>
+                  <DataPath>Объект.ДатаОтгрузки</DataPath>
+                  <Width>15</Width>
+                </InputField>
+                <InputField>
+                  <Name>СпособДоставки</Name>
+                  <Id>404</Id>
+                  <Title>Способ доставки</Title>
+                  <DataPath>Объект.СпособДоставки</DataPath>
+                  <Width>25</Width>
+                  <ChoiceButton>true</ChoiceButton>
+                </InputField>
+                <CheckBoxField>
+                  <Name>ДоставкаТребуется</Name>
+                  <Id>405</Id>
+                  <Title>Доставка требуется</Title>
+                  <DataPath>Объект.ДоставкаТребуется</DataPath>
+                </CheckBoxField>
+              </Elements>
+            </UsualGroup>
+
+            <UsualGroup>
+              <Name>ГруппаОплата</Name>
+              <Id>410</Id>
+              <Title>Оплата</Title>
+              <Group>Vertical</Group>
+              <Representation>StrongSeparation</Representation>
+              <Elements>
+                <InputField>
+                  <Name>ФормаОплаты</Name>
+                  <Id>411</Id>
+                  <Title>Форма оплаты</Title>
+                  <DataPath>Объект.ФормаОплаты</DataPath>
+                  <Width>25</Width>
+                  <ChoiceButton>true</ChoiceButton>
+                </InputField>
+                <InputField>
+                  <Name>ПроцентПредоплаты</Name>
+                  <Id>412</Id>
+                  <Title>% предоплаты</Title>
+                  <DataPath>Объект.ПроцентПредоплаты</DataPath>
+                  <Width>10</Width>
+                </InputField>
+                <InputField>
+                  <Name>СрокОплаты</Name>
+                  <Id>413</Id>
+                  <Title>Срок оплаты (дней)</Title>
+                  <DataPath>Объект.СрокОплаты</DataPath>
+                  <Width>10</Width>
+                </InputField>
+                <InputField>
+                  <Name>БанковскийСчет</Name>
+                  <Id>414</Id>
+                  <Title>Банковский счет</Title>
+                  <DataPath>Объект.БанковскийСчет</DataPath>
+                  <Width>30</Width>
+                  <HorizontalStretch>true</HorizontalStretch>
+                  <ChoiceButton>true</ChoiceButton>
+                </InputField>
+              </Elements>
+            </UsualGroup>
+
+            <UsualGroup>
+              <Name>ГруппаКомментарий</Name>
+              <Id>420</Id>
+              <Title>Комментарий</Title>
+              <Group>Vertical</Group>
+              <Representation>NormalSeparation</Representation>
+              <Elements>
+                <InputField>
+                  <Name>Комментарий</Name>
+                  <Id>421</Id>
+                  <Title>Комментарий</Title>
+                  <DataPath>Объект.Комментарий</DataPath>
+                  <Width>60</Width>
+                  <Height>5</Height>
+                  <MultiLine>true</MultiLine>
+                  <HorizontalStretch>true</HorizontalStretch>
+                  <VerticalStretch>true</VerticalStretch>
+                </InputField>
+              </Elements>
+            </UsualGroup>
+          </Elements>
+        </Page>
+
+        <!-- ===== Page 4: Скидки ===== -->
+        <Page>
+          <Name>СтраницаСкидки</Name>
+          <Id>500</Id>
+          <Title>Скидки</Title>
+          <Group>Vertical</Group>
+          <Elements>
+            <UsualGroup>
+              <Name>ГруппаПараметрыСкидки</Name>
+              <Id>501</Id>
+              <Title>Параметры скидки</Title>
+              <Group>Vertical</Group>
+              <Representation>NormalSeparation</Representation>
+              <Elements>
+                <InputField>
+                  <Name>ВидСкидки</Name>
+                  <Id>502</Id>
+                  <Title>Вид скидки</Title>
+                  <DataPath>Объект.ВидСкидки</DataPath>
+                  <Width>25</Width>
+                  <ChoiceButton>true</ChoiceButton>
+                </InputField>
+                <InputField>
+                  <Name>ПроцентСкидки</Name>
+                  <Id>503</Id>
+                  <Title>Процент скидки</Title>
+                  <DataPath>Объект.ПроцентСкидки</DataPath>
+                  <Width>10</Width>
+                </InputField>
+                <InputField>
+                  <Name>СуммаСкидки</Name>
+                  <Id>504</Id>
+                  <Title>Сумма скидки</Title>
+                  <DataPath>Объект.СуммаСкидки</DataPath>
+                  <Width>15</Width>
+                  <ReadOnly>true</ReadOnly>
+                </InputField>
+                <LabelDecoration>
+                  <Name>НадписьСкидкаОграничение</Name>
+                  <Id>505</Id>
+                  <Title>Скидка не может превышать 30% от суммы заказа</Title>
+                  <TextColor>Style.ExplanationTextColor</TextColor>
+                  <HorizontalStretch>true</HorizontalStretch>
+                </LabelDecoration>
+              </Elements>
+            </UsualGroup>
+
+            <CheckBoxField>
+              <Name>ПрименитьСкидкуАвтоматически</Name>
+              <Id>506</Id>
+              <Title>Применить скидку автоматически</Title>
+              <DataPath>Объект.ПрименитьСкидкуАвтоматически</DataPath>
+            </CheckBoxField>
+
+            <Button>
+              <Name>КнопкаРассчитатьСкидки</Name>
+              <Id>507</Id>
+              <Title>Рассчитать скидки</Title>
+              <CommandName>РассчитатьСкидки</CommandName>
+            </Button>
+          </Elements>
+        </Page>
+
+        <!-- ===== Page 5: Печатные формы ===== -->
+        <Page>
+          <Name>СтраницаПечатныеФормы</Name>
+          <Id>600</Id>
+          <Title>Печатные формы</Title>
+          <Group>Vertical</Group>
+          <Elements>
+            <UsualGroup>
+              <Name>ГруппаПечатныеФормы</Name>
+              <Id>601</Id>
+              <Title>Печатные формы</Title>
+              <Group>Vertical</Group>
+              <Representation>NormalSeparation</Representation>
+              <Elements>
+                <Button>
+                  <Name>КнопкаПечатьСчет</Name>
+                  <Id>602</Id>
+                  <Title>Счет на оплату</Title>
+                  <CommandName>ПечатьСчет</CommandName>
+                </Button>
+                <Button>
+                  <Name>КнопкаПечатьНакладная</Name>
+                  <Id>603</Id>
+                  <Title>Товарная накладная</Title>
+                  <CommandName>ПечатьНакладная</CommandName>
+                </Button>
+                <Button>
+                  <Name>КнопкаПечатьСчетФактура</Name>
+                  <Id>604</Id>
+                  <Title>Счет-фактура</Title>
+                  <CommandName>ПечатьСчетФактура</CommandName>
+                </Button>
+              </Elements>
+            </UsualGroup>
+
+            <LabelDecoration>
+              <Name>НадписьПечатьПодсказка</Name>
+              <Id>605</Id>
+              <Title>Документ должен быть проведен перед печатью</Title>
+              <TextColor>Style.ExplanationTextColor</TextColor>
+              <HorizontalStretch>true</HorizontalStretch>
+            </LabelDecoration>
+          </Elements>
+        </Page>
+
+      </Elements>
+    </Pages>
+  </Elements>
+
+  <!-- ====== Commands ====== -->
+  <Commands>
+    <Command>
+      <Name>Провести</Name>
+      <Id>700</Id>
+      <Title>Провести</Title>
+      <ToolTip>Провести документ</ToolTip>
+      <Action>Провести</Action>
+    </Command>
+    <Command>
+      <Name>ПровестиИЗакрыть</Name>
+      <Id>701</Id>
+      <Title>Провести и закрыть</Title>
+      <ToolTip>Провести документ и закрыть форму</ToolTip>
+      <Action>ПровестиИЗакрыть</Action>
+    </Command>
+    <Command>
+      <Name>Печать</Name>
+      <Id>702</Id>
+      <Title>Печать</Title>
+      <Action>Печать</Action>
+    </Command>
+    <Command>
+      <Name>ТоварыДобавитьСтроку</Name>
+      <Id>703</Id>
+      <Title>Добавить строку</Title>
+      <Action>ТоварыДобавитьСтроку</Action>
+    </Command>
+    <Command>
+      <Name>ТоварыУдалитьСтроку</Name>
+      <Id>704</Id>
+      <Title>Удалить строку</Title>
+      <Action>ТоварыУдалитьСтроку</Action>
+    </Command>
+    <Command>
+      <Name>ПодборТоваров</Name>
+      <Id>705</Id>
+      <Title>Подбор товаров</Title>
+      <ToolTip>Открыть подбор товаров</ToolTip>
+      <Action>ПодборТоваров</Action>
+    </Command>
+    <Command>
+      <Name>РассчитатьСкидки</Name>
+      <Id>706</Id>
+      <Title>Рассчитать скидки</Title>
+      <Action>РассчитатьСкидки</Action>
+    </Command>
+    <Command>
+      <Name>ПечатьСчет</Name>
+      <Id>707</Id>
+      <Title>Счет на оплату</Title>
+      <Action>ПечатьСчет</Action>
+    </Command>
+    <Command>
+      <Name>ПечатьНакладная</Name>
+      <Id>708</Id>
+      <Title>Товарная накладная</Title>
+      <Action>ПечатьНакладная</Action>
+    </Command>
+    <Command>
+      <Name>ПечатьСчетФактура</Name>
+      <Id>709</Id>
+      <Title>Счет-фактура</Title>
+      <Action>ПечатьСчетФактура</Action>
+    </Command>
+  </Commands>
+
+  <!-- ====== Event Handlers ====== -->
+  <Events>
+    <Event>
+      <Name>ПриСозданииНаСервере</Name>
+      <Handler>ПриСозданииНаСервере</Handler>
+    </Event>
+    <Event>
+      <Name>ПриОткрытии</Name>
+      <Handler>ПриОткрытии</Handler>
+    </Event>
+    <Event>
+      <Name>ПередЗаписью</Name>
+      <Handler>ПередЗаписью</Handler>
+    </Event>
+    <Event>
+      <Name>ПослеЗаписи</Name>
+      <Handler>ПослеЗаписи</Handler>
+    </Event>
+    <Event>
+      <Name>ОбработкаОповещения</Name>
+      <Handler>ОбработкаОповещения</Handler>
+    </Event>
+  </Events>
+</ManagedForm>

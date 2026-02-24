@@ -1,0 +1,23 @@
+{
+  "name": "@1c-form-designer/core-form",
+  "version": "0.1.0",
+  "description": "Core library: FormModel, XML parser/serializer, Layout Engine, Command Engine",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}
