@@ -89,6 +89,10 @@ export function useBridge(): void {
     };
 
     window.addEventListener('ext-message', handler);
+
+    // Signal to extension that the UI is ready to receive messages
+    postToExtension({ type: 'ui:ready' });
+
     return () => window.removeEventListener('ext-message', handler);
   }, [setModel, setDirty, setDiagnostics, setConfig, setExpandedNodeIds, selectNode, setActiveView, updateLayout]);
 }

@@ -57,13 +57,11 @@
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist *.tsbuildinfo",
-    "package": "npx @vscode/vsce package"
-  },
-  "dependencies": {
-    "@1c-form-designer/core-form": "0.1.0",
-    "@1c-form-designer/shared": "0.1.0"
+    "package": "npx @vscode/vsce package --no-dependencies"
   },
   "devDependencies": {
+    "@1c-form-designer/core-form": "0.1.0",
+    "@1c-form-designer/shared": "0.1.0",
     "@types/vscode": "^1.85.0",
     "esbuild": "^0.24.0",
     "typescript": "^5.5.0"
