@@ -7,7 +7,9 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
@@ -16,8 +18,12 @@
         "viewType": "formDesigner.managedForm",
         "displayName": "1C Form Designer",
         "selector": [
-          { "filenamePattern": "**/Ext/Form.xml" },
-          { "filenamePattern": "*.form.xml" }
+          {
+            "filenamePattern": "**/Ext/Form.xml"
+          },
+          {
+            "filenamePattern": "*.form.xml"
+          }
         ],
         "priority": "default"
       }
@@ -35,7 +41,10 @@
         "formDesigner.formattingMode": {
           "type": "string",
           "default": "preserve",
-          "enum": ["preserve", "canonical"],
+          "enum": [
+            "preserve",
+            "canonical"
+          ],
           "description": "XML formatting mode: preserve original or canonical"
         },
         "formDesigner.maxUndo": {
@@ -46,7 +55,11 @@
         "formDesigner.defaultView": {
           "type": "string",
           "default": "design",
-          "enum": ["design", "structure", "source"],
+          "enum": [
+            "design",
+            "structure",
+            "source"
+          ],
           "description": "Default view mode when opening a form"
         }
       }
@@ -63,7 +76,7 @@
     "@1c-form-designer/core-form": "0.1.0",
     "@1c-form-designer/shared": "0.1.0",
     "@types/vscode": "^1.85.0",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.27.3",
     "typescript": "^5.5.0"
   }
 }

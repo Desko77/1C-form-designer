@@ -14,14 +14,18 @@
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
     "turbo": "^2.3.0",
     "typescript": "^5.5.0",
-    "vitest": "^2.1.0",
-    "eslint": "^9.0.0",
-    "prettier": "^3.3.0"
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=18.0.0"
   },
-  "packageManager": "npm@10.0.0"
+  "packageManager": "npm@10.0.0",
+  "dependencies": {
+    "esbuild": "0.27.3",
+    "fast-xml-parser": "5.4.1"
+  }
 }
