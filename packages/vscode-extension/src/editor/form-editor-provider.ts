@@ -104,13 +104,16 @@ class FormEditorInstance {
     this.output.appendLine(`Layout computed in ${this.currentLayout.computeTimeMs.toFixed(1)}ms, ${this.currentLayout.boxes.size} boxes`);
   }
 
+  private getWebviewUiDistUri(): vscode.Uri {
+    return vscode.Uri.joinPath(this.context.extensionUri, 'media', 'webview');
+  }
+
   private setupWebview(): void {
     const webview = this.panel.webview;
+    const webviewDist = this.getWebviewUiDistUri();
     webview.options = {
       enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(this.context.extensionUri, 'media'),
-      ],
+      localResourceRoots: [webviewDist],
     };
 
     webview.html = this.getWebviewContent();
@@ -386,26 +389,26 @@ class FormEditorInstance {
   }
 
   private getWebviewContent(): string {
+    const webview = this.panel.webview;
     const nonce = getNonce();
+    const distUri = this.getWebviewUiDistUri();
+
+    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(distUri, 'assets', 'index.js'));
+    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(distUri, 'assets', 'style.css'));
 
     return `<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline' vscode-resource:; font-src vscode-resource:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}' 'unsafe-inline'; font-src ${webview.cspSource};">
   <title>1C Form Designer</title>
-  <style>
-    :root {
-      --designer-bg: var(--vscode-editor-background);
-      --designer-fg: var(--vscode-editor-foreground);
-      --designer-border: var(--vscode-panel-border);
-      --designer-header-bg: var(--vscode-sideBarSectionHeader-background);
-    }
+  <link rel="stylesheet" nonce="${nonce}" href="${styleUri}">
+  <style nonce="${nonce}">
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: var(--designer-bg);
-      color: var(--designer-fg);
+      background: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
       font-family: var(--vscode-font-family);
       font-size: var(--vscode-font-size);
       overflow: hidden;
@@ -418,20 +421,12 @@ class FormEditorInstance {
   <div id="root"></div>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
-
-    // Bridge: WebView ↔ Extension
     window.addEventListener('message', (event) => {
-      const message = event.data;
-      window.dispatchEvent(new CustomEvent('ext-message', { detail: message }));
+      window.dispatchEvent(new CustomEvent('ext-message', { detail: event.data }));
     });
-
-    window.postToExtension = (message) => {
-      vscode.postMessage(message);
-    };
-
-    // Signal ready
-    window.postToExtension({ type: 'ui:ready' });
+    window.postToExtension = (message) => { vscode.postMessage(message); };
   </script>
+  <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
   }

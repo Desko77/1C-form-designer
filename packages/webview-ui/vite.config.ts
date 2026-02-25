@@ -5,11 +5,16 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: 'dist',
+    // Single JS bundle for VS Code webview
+    cssCodeSplit: false,
     rollupOptions: {
       output: {
-        entryFileNames: 'assets/[name].js',
+        // Deterministic file names (no hash) so the extension can reference them
+        entryFileNames: 'assets/index.js',
         chunkFileNames: 'assets/[name].js',
         assetFileNames: 'assets/[name].[ext]',
+        // Wrap in IIFE — webview has no ES module support
+        format: 'iife',
       },
     },
   },
