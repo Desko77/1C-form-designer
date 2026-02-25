@@ -1,7 +1,4 @@
-.vscode/**
-src/**
-node_modules/**
-*.tsbuildinfo
-build.mjs
-tsconfig.json
-**/*.map
+**
+!dist/extension.js
+!media/webview/**
+!package.json
