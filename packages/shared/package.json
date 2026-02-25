@@ -1,0 +1,19 @@
+{
+  "name": "@1c-form-designer/shared",
+  "version": "0.1.0",
+  "description": "Shared types: messages protocol, layout types, config, UI state",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@1c-form-designer/core-form": "0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
