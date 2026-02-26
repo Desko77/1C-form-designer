@@ -5,8 +5,8 @@
 
 import * as vscode from 'vscode';
 import {
-  parseXmlToModel,
-  serializeModelToXml,
+  parseFormXml,
+  serializeModelToFormat,
   CommandEngine,
   createLayoutEngine,
   validateModel,
@@ -89,7 +89,7 @@ class FormEditorInstance {
     const xml = this.document.getText();
     this.output.appendLine(`Parsing form: ${this.document.uri.fsPath}`);
 
-    const { model, diagnostics } = parseXmlToModel(xml, this.document.uri.toString());
+    const { model, diagnostics } = parseFormXml(xml, this.document.uri.toString());
     this.model = model;
 
     if (diagnostics.length > 0) {
@@ -287,7 +287,7 @@ class FormEditorInstance {
   private async handleSave(): Promise<void> {
     if (!this.model) return;
 
-    const xml = serializeModelToXml(this.model);
+    const xml = serializeModelToFormat(this.model);
 
     const edit = new vscode.WorkspaceEdit();
     edit.replace(
@@ -308,7 +308,7 @@ class FormEditorInstance {
 
   showDiff(): void {
     if (!this.model) return;
-    const currentXml = serializeModelToXml(this.model);
+    const currentXml = serializeModelToFormat(this.model);
     // Open diff in VS Code
     const originalUri = this.document.uri;
     const modifiedUri = vscode.Uri.parse(`untitled:${this.document.uri.fsPath}.modified.xml`);
@@ -327,7 +327,7 @@ class FormEditorInstance {
     } else {
       // Auto-reload
       const xml = this.document.getText();
-      const { model, diagnostics } = parseXmlToModel(xml, this.document.uri.toString());
+      const { model, diagnostics } = parseFormXml(xml, this.document.uri.toString());
       this.model = model;
       this.currentLayout = this.layoutEngine.computeLayout(model.form, this.viewport);
       this.sendFullModelUpdate();
@@ -359,7 +359,14 @@ class FormEditorInstance {
   private openBslHandler(handlerName: string): void {
     // Try to find Module.bsl alongside the form
     const formPath = this.document.uri.fsPath;
-    const modulePath = formPath.replace(/Form\.xml$/, 'Form/Module.bsl');
+    let modulePath: string;
+    if (formPath.endsWith('Form.form')) {
+      // EDT workspace: Module.bsl is in the same directory as Form.form
+      modulePath = formPath.replace(/Form\.form$/, 'Module.bsl');
+    } else {
+      // mdclass format: Module.bsl is in Form/ subdirectory
+      modulePath = formPath.replace(/Form\.xml$/, 'Form/Module.bsl');
+    }
     const moduleUri = vscode.Uri.file(modulePath);
 
     vscode.workspace.openTextDocument(moduleUri).then(

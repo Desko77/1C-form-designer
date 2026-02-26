@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form:Form xmlns:form="http://g5.1c.ru/v8/dt/form"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:core="http://g5.1c.ru/v8/dt/mcore"
+  uuid="b1c2d3e4-f5a6-7890-bcde-f12345678901">
+  <title>
+    <key>ru</key>
+    <value>Форма элемента</value>
+  </title>
+  <items xsi:type="form:FormGroup">
+    <name>ГруппаОсновная</name>
+    <id>1</id>
+    <type>UsualGroup</type>
+    <title>
+      <key>ru</key>
+      <value>Основная информация</value>
+    </title>
+    <group>Vertical</group>
+    <showTitle>true</showTitle>
+    <items xsi:type="form:FormField">
+      <name>Наименование</name>
+      <id>2</id>
+      <type>InputField</type>
+      <dataPath xsi:type="form:DataPath">
+        <segments>Объект.Наименование</segments>
+      </dataPath>
+      <handlers>
+        <event>OnChange</event>
+        <name>НаименованиеПриИзменении</name>
+      </handlers>
+    </items>
+    <items xsi:type="form:FormField">
+      <name>Код</name>
+      <id>3</id>
+      <type>InputField</type>
+      <dataPath xsi:type="form:DataPath">
+        <segments>Объект.Код</segments>
+      </dataPath>
+    </items>
+  </items>
+  <items xsi:type="form:FormDecoration">
+    <name>НадписьИнфо</name>
+    <id>4</id>
+    <type>Label</type>
+    <title>
+      <key>ru</key>
+      <value>Заполните обязательные поля</value>
+    </title>
+  </items>
+  <items xsi:type="form:FormButton">
+    <name>КнопкаЗаписать</name>
+    <id>5</id>
+    <commandName>Form.Command.Записать</commandName>
+    <defaultButton>true</defaultButton>
+  </items>
+  <formCommands>
+    <name>Записать</name>
+    <id>c1</id>
+    <title>
+      <key>ru</key>
+      <value>Записать</value>
+    </title>
+    <action xsi:type="form:FormCommandHandlerContainer">
+      <handler>
+        <name>Записать</name>
+      </handler>
+    </action>
+  </formCommands>
+</form:Form>

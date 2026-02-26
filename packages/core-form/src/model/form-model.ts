@@ -30,7 +30,7 @@ export interface FormMeta {
   formatting?: { mode: 'preserve' | 'canonical' };
   platformVersion?: string;
   xmlNamespaces?: Record<string, string>;
-  exportFormat?: 'edt' | 'configurator';
+  exportFormat?: 'edt' | 'edt-form' | 'configurator';
 }
 
 // ═══════════════════════════════════════════
@@ -55,6 +55,9 @@ export interface FormRoot {
   autoCommandBar?: AutoCommandBarNode;
   children: FormNode[];
   formProperties?: FormRootProperties;
+
+  /** Format-specific XML preserved for round-trip (root-level handlers, extInfo, etc.) */
+  preservedXml?: Record<string, string>;
 }
 
 export interface FormRootProperties {
@@ -113,6 +116,9 @@ export interface BaseNode {
   events?: EventBinding[];
 
   conditionalAppearance?: UnknownBlock;
+
+  /** Format-specific XML preserved for round-trip (extInfo, extendedTooltip, contextMenu, etc.) */
+  preservedXml?: Record<string, string>;
 }
 
 // ═══════════════════════════════════════════
@@ -363,6 +369,9 @@ export interface FormCommand {
   representation?: string;
   modifiesStoredData?: boolean;
   shortcut?: string;
+
+  /** Raw XML of complex action structure (form:FormCommandHandlerContainer), preserved for round-trip */
+  actionRaw?: string;
 }
 
 // ═══════════════════════════════════════════

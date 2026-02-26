@@ -23,6 +23,9 @@
           },
           {
             "filenamePattern": "*.form.xml"
+          },
+          {
+            "filenamePattern": "**/Form.form"
           }
         ],
         "priority": "default"

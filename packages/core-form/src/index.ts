@@ -67,9 +67,19 @@ export {
   KNOWN_NAMESPACES,
 } from './parser/xml-mapping';
 
+// ─── Form.form Parser ───
+export { parseFormFormToModel } from './parser/form-form-parser';
+export { detectFormFormat } from './parser/format-detector';
+export type { FormFormat } from './parser/format-detector';
+export { parseFormXml } from './parser/parse';
+
 // ─── Serializer ───
 export { serializeModelToXml } from './serializer/xml-serializer';
 export type { SerializeOptions } from './serializer/xml-serializer';
+
+// ─── Form.form Serializer ───
+export { serializeModelToFormForm } from './serializer/form-form-serializer';
+export { serializeModelToFormat } from './serializer/serialize';
 
 // ─── Validator ───
 export { validateModel } from './validator/validator';

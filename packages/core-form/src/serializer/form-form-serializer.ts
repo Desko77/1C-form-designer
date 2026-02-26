@@ -1,6 +1,12 @@
 /**
- * XML Serializer: transforms FormModel back into 1C managed form XML (mdclass format).
- * Preserves unknown blocks, xmlns, and element ordering.
+ * Serializer for Form.form (EDT workspace format).
+ *
+ * Produces XML with:
+ * - Root: <form:Form xmlns:form="..." xmlns:xsi="..." ...>
+ * - Elements: <items xsi:type="form:FormField"> with <type>, <name>, <id> as children
+ * - DataPath: <dataPath xsi:type="form:DataPath"><segments>value</segments></dataPath>
+ * - Commands: <formCommands>
+ * - Restored extendedTooltip, contextMenu, extInfo from preservedXml
  */
 
 import type {
@@ -22,12 +28,9 @@ import type {
   AutoCommandBarNode,
   UnknownElementNode,
 } from '../model/form-model';
-import {
-  MODEL_TO_XML_KIND,
-  FIELD_TYPE_TO_XML_KIND,
-  DECORATION_TYPE_TO_XML_KIND,
-  KNOWN_NAMESPACES,
-} from '../parser/xml-mapping';
+import { KNOWN_NAMESPACES } from '../parser/xml-mapping';
+import { FIELD_TYPE_TO_XML_KIND, DECORATION_TYPE_TO_XML_KIND } from '../parser/xml-mapping';
+import { MODEL_TO_FORM_FORM_KIND } from '../parser/form-form-mapping';
 import {
   SerializerContext,
   escapeXml,
@@ -36,24 +39,17 @@ import {
   serializeLocalizedString,
   serializeGroupType,
   serializePictureRef,
-  serializeFontRef,
-  serializeColorRef,
   serializeLayoutProps,
   serializeStyleProps,
-  serializeBindingProps,
-  serializeEventBindings,
-  serializeBaseProperties,
 } from './serializer-utils';
 import type { SerializeOptions } from './serializer-utils';
 
-export type { SerializeOptions } from './serializer-utils';
-
 const DEFAULT_OPTIONS: Required<SerializeOptions> = {
-  indent: '\t',
+  indent: '  ',
   mode: 'preserve',
 };
 
-export function serializeModelToXml(model: FormModel, options?: SerializeOptions): string {
+export function serializeModelToFormForm(model: FormModel, options?: SerializeOptions): string {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const ctx = new SerializerContext(opts.indent);
 
@@ -62,15 +58,13 @@ export function serializeModelToXml(model: FormModel, options?: SerializeOptions
   // Build root element attributes
   const rootAttrs: string[] = [];
 
-  // Namespaces
+  // Namespaces — ensure form and xsi are present
   const ns = model.meta?.xmlNamespaces || {};
+  const hasForm = Object.values(ns).includes(KNOWN_NAMESPACES.form);
   const hasXsi = Object.values(ns).includes(KNOWN_NAMESPACES.xsi);
-  const hasCore = Object.values(ns).includes(KNOWN_NAMESPACES.core);
-  const hasMdclass = Object.values(ns).includes(KNOWN_NAMESPACES.mdclass);
 
+  if (!hasForm) rootAttrs.push(`xmlns:form="${KNOWN_NAMESPACES.form}"`);
   if (!hasXsi) rootAttrs.push(`xmlns:xsi="${KNOWN_NAMESPACES.xsi}"`);
-  if (!hasCore) rootAttrs.push(`xmlns:core="${KNOWN_NAMESPACES.core}"`);
-  if (!hasMdclass) rootAttrs.push(`xmlns:mdclass="${KNOWN_NAMESPACES.mdclass}"`);
 
   for (const [prefix, uri] of Object.entries(ns)) {
     if (prefix) {
@@ -85,14 +79,11 @@ export function serializeModelToXml(model: FormModel, options?: SerializeOptions
     rootAttrs.push(`uuid="${escapeXml(model.form.id.xmlId)}"`);
   }
 
-  const rootTag = 'mdclass:ManagedForm';
+  const rootTag = 'form:Form';
   ctx.openTag(rootTag, rootAttrs);
 
   // producedTypes — insert unknown block if present
   insertUnknownBlock(ctx, model.unknownBlocks, 'producedTypes');
-
-  // Name
-  ctx.simpleElement('n', model.form.name);
 
   // Title
   serializeLocalizedString(ctx, 'title', model.form.caption);
@@ -110,27 +101,36 @@ export function serializeModelToXml(model: FormModel, options?: SerializeOptions
     }
   }
 
-  // Elements
+  // AutoCommandBar (as separate tag)
   if (model.form.autoCommandBar) {
-    serializeElement(ctx, model.form.autoCommandBar);
-  }
-  for (const child of model.form.children) {
-    serializeElement(ctx, child);
+    serializeAutoCommandBarTag(ctx, model.form.autoCommandBar);
   }
 
-  // Commands
+  // Elements (items)
+  for (const child of model.form.children) {
+    serializeItem(ctx, child);
+  }
+
+  // Commands (formCommands)
   if (model.commands && model.commands.length > 0) {
     for (const cmd of model.commands) {
       serializeFormCommand(ctx, cmd);
     }
   }
 
+  // Root-level preserved XML
+  if (model.form.preservedXml) {
+    for (const [key, json] of Object.entries(model.form.preservedXml)) {
+      if (key !== 'handlers' && key !== 'extInfo' && key !== 'commandInterface') continue;
+      ctx.appendRawLine(tryParseStoredXml(json, key, ctx.currentIndent()));
+    }
+  }
+
   // Remaining unknown top-level blocks
   if (model.unknownBlocks) {
     for (const block of model.unknownBlocks) {
-      if (!['producedTypes', 'usePurposes'].includes(block.key)) {
-        ctx.appendRawLine(tryParseStoredXml(block.xml, block.key, ctx.currentIndent()));
-      }
+      if (['producedTypes', 'usePurposes'].includes(block.key)) continue;
+      ctx.appendRawLine(tryParseStoredXml(block.xml, block.key, ctx.currentIndent()));
     }
   }
 
@@ -139,40 +139,43 @@ export function serializeModelToXml(model: FormModel, options?: SerializeOptions
   return ctx.toString();
 }
 
-// ─── Element Serialization ───
+// ─── Item Serialization ───
 
-function serializeElement(ctx: SerializerContext, node: FormNode): void {
+function serializeItem(ctx: SerializerContext, node: FormNode): void {
   if (node.kind === 'unknown') {
-    serializeUnknownElement(ctx, node as UnknownElementNode);
+    serializeUnknownItem(ctx, node as UnknownElementNode);
     return;
   }
 
-  const mapping = MODEL_TO_XML_KIND[node.kind];
+  const mapping = MODEL_TO_FORM_FORM_KIND[node.kind];
   if (!mapping) return;
 
   const attrs: string[] = [`xsi:type="${mapping.xsiType}"`];
+  ctx.openTag('items', attrs);
+
+  // Name as child element
+  ctx.simpleElement('name', node.name);
+
+  // ID as child element
   if (node.id.xmlId && node.id.xmlId !== '0') {
-    attrs.push(`id="${escapeXml(node.id.xmlId)}"`);
+    ctx.simpleElement('id', node.id.xmlId);
   }
-  attrs.push(`name="${escapeXml(node.name)}"`);
 
-  ctx.openTag('elements', attrs);
-
-  // Kind element
-  if (mapping.xmlKind) {
-    ctx.simpleElement('kind', mapping.xmlKind);
+  // Type element (equivalent of <kind> in mdclass)
+  if (mapping.type) {
+    ctx.simpleElement('type', mapping.type);
   } else if (node.kind === 'field') {
     const fieldNode = node as FieldNode;
     const xmlKind = FIELD_TYPE_TO_XML_KIND[fieldNode.fieldType];
-    if (xmlKind) ctx.simpleElement('kind', xmlKind);
+    if (xmlKind) ctx.simpleElement('type', xmlKind);
   } else if (node.kind === 'decoration') {
     const decNode = node as DecorationNode;
     const xmlKind = DECORATION_TYPE_TO_XML_KIND[decNode.decorationType];
-    if (xmlKind) ctx.simpleElement('kind', xmlKind);
+    if (xmlKind) ctx.simpleElement('type', xmlKind);
   }
 
   // Common properties
-  serializeBaseProperties(ctx, node);
+  serializeFormFormBaseProperties(ctx, node);
 
   // Type-specific properties
   switch (node.kind) {
@@ -192,7 +195,7 @@ function serializeElement(ctx: SerializerContext, node: FormNode): void {
       serializeCommandBar(ctx, node as CommandBarNode);
       break;
     case 'autoCommandBar':
-      serializeAutoCommandBar(ctx, node as AutoCommandBarNode);
+      serializeAutoCommandBarItems(ctx, node as AutoCommandBarNode);
       break;
     case 'field':
       serializeField(ctx, node as FieldNode);
@@ -208,12 +211,56 @@ function serializeElement(ctx: SerializerContext, node: FormNode): void {
       break;
   }
 
-  ctx.closeTag('elements');
+  // Preserved XML (extendedTooltip, contextMenu, extInfo)
+  serializePreservedXml(ctx, node.preservedXml);
+
+  ctx.closeTag('items');
 }
 
-function serializeUnknownElement(ctx: SerializerContext, node: UnknownElementNode): void {
-  // Try to restore original XML from rawXml
-  ctx.appendRawLine(tryParseStoredXml(node.rawXml, 'elements', ctx.currentIndent()));
+function serializeUnknownItem(ctx: SerializerContext, node: UnknownElementNode): void {
+  ctx.appendRawLine(tryParseStoredXml(node.rawXml, 'items', ctx.currentIndent()));
+}
+
+// ─── Base Properties ───
+
+function serializeFormFormBaseProperties(ctx: SerializerContext, node: FormNode): void {
+  serializeLocalizedString(ctx, 'title', node.caption);
+
+  if (node.visible !== undefined) ctx.simpleElement('visible', String(node.visible));
+  if (node.enabled !== undefined) ctx.simpleElement('enabled', String(node.enabled));
+  if (node.readOnly !== undefined) ctx.simpleElement('readOnly', String(node.readOnly));
+  if (node.skipOnInput !== undefined) ctx.simpleElement('skipOnInput', String(node.skipOnInput));
+
+  serializeLocalizedString(ctx, 'toolTip', node.toolTip);
+  serializeLayoutProps(ctx, node.layout);
+  serializeStyleProps(ctx, node.style);
+
+  // Events with <name> instead of <n>
+  if (node.events && node.events.length > 0) {
+    for (const ev of node.events) {
+      ctx.openTag('handlers');
+      ctx.simpleElement('event', ev.event);
+      if (ev.handler) ctx.simpleElement('name', ev.handler);
+      ctx.closeTag('handlers');
+    }
+  }
+
+  if (node.conditionalAppearance) {
+    ctx.appendRawLine(tryParseStoredXml(
+      node.conditionalAppearance.xml,
+      'conditionalAppearance',
+      ctx.currentIndent(),
+    ));
+  }
+}
+
+// ─── DataPath serialization ───
+
+function serializeDataPath(ctx: SerializerContext, dataPath?: string): void {
+  if (!dataPath) return;
+  ctx.openTag('dataPath', ['xsi:type="form:DataPath"']);
+  ctx.simpleElement('segments', dataPath);
+  ctx.closeTag('dataPath');
 }
 
 // ─── Container Serialization ───
@@ -226,40 +273,52 @@ function serializeUsualGroup(ctx: SerializerContext, node: UsualGroupNode): void
   if (node.showTitle !== undefined) ctx.simpleElement('showTitle', String(node.showTitle));
   if (node.collapsible !== undefined) ctx.simpleElement('collapsible', String(node.collapsible));
   if (node.collapsed !== undefined) ctx.simpleElement('collapsed', String(node.collapsed));
-  serializeChildren(ctx, node.children);
+  serializeChildItems(ctx, node.children);
 }
 
 function serializePagesGroup(ctx: SerializerContext, node: PagesNode): void {
   if (node.pagesRepresentation) {
     ctx.simpleElement('pagesRepresentation', capitalizeFirst(node.pagesRepresentation));
   }
-  serializeChildren(ctx, node.children);
+  serializeChildItems(ctx, node.children);
 }
 
 function serializePageGroup(ctx: SerializerContext, node: PageNode): void {
   serializeGroupType(ctx, node.group);
   if (node.picture) serializePictureRef(ctx, 'picture', node.picture);
-  serializeChildren(ctx, node.children);
+  serializeChildItems(ctx, node.children);
 }
 
 function serializeColumnGroup(ctx: SerializerContext, node: ColumnGroupNode): void {
   serializeGroupType(ctx, node.group);
-  serializeChildren(ctx, node.children);
+  serializeChildItems(ctx, node.children);
 }
 
 function serializeCommandBar(ctx: SerializerContext, node: CommandBarNode): void {
   if (node.commandSource) ctx.simpleElement('commandSource', node.commandSource);
-  serializeChildren(ctx, node.children);
+  serializeChildItems(ctx, node.children);
 }
 
-function serializeAutoCommandBar(ctx: SerializerContext, node: AutoCommandBarNode): void {
-  serializeChildren(ctx, node.children);
+function serializeAutoCommandBarItems(ctx: SerializerContext, node: AutoCommandBarNode): void {
+  serializeChildItems(ctx, node.children);
+}
+
+function serializeAutoCommandBarTag(ctx: SerializerContext, node: AutoCommandBarNode): void {
+  ctx.openTag('autoCommandBar');
+  ctx.simpleElement('name', node.name);
+  if (node.id.xmlId && node.id.xmlId !== '0') {
+    ctx.simpleElement('id', node.id.xmlId);
+  }
+  serializeFormFormBaseProperties(ctx, node);
+  serializeChildItems(ctx, node.children);
+  serializePreservedXml(ctx, node.preservedXml);
+  ctx.closeTag('autoCommandBar');
 }
 
 // ─── Element Serialization ───
 
 function serializeField(ctx: SerializerContext, node: FieldNode): void {
-  if (node.dataPath) ctx.simpleElement('dataPath', node.dataPath);
+  serializeDataPath(ctx, node.dataPath);
   if (node.mask) ctx.simpleElement('mask', node.mask);
   if (node.inputHint) ctx.simpleElement('inputHint', node.inputHint);
   if (node.multiLine !== undefined) ctx.simpleElement('multiLine', String(node.multiLine));
@@ -284,7 +343,7 @@ function serializeButtonNode(ctx: SerializerContext, node: ButtonNode): void {
 }
 
 function serializeTable(ctx: SerializerContext, node: TableNode): void {
-  if (node.dataPath) ctx.simpleElement('dataPath', node.dataPath);
+  serializeDataPath(ctx, node.dataPath);
   if (node.searchStringLocation) ctx.simpleElement('searchStringLocation', capitalizeFirst(node.searchStringLocation));
   if (node.rowCount !== undefined) ctx.simpleElement('rowCount', String(node.rowCount));
   if (node.selectionMode) ctx.simpleElement('selectionMode', capitalizeFirst(node.selectionMode));
@@ -296,29 +355,28 @@ function serializeTable(ctx: SerializerContext, node: TableNode): void {
 
   // Command bar
   if (node.commandBar) {
-    serializeElement(ctx, node.commandBar);
+    serializeItem(ctx, node.commandBar);
   }
 
-  // Columns as child elements
+  // Columns as items
   for (const col of node.columns) {
     serializeTableColumn(ctx, col);
   }
 }
 
 function serializeTableColumn(ctx: SerializerContext, col: TableColumn): void {
-  const attrs: string[] = [`xsi:type="FormField"`];
+  const attrs: string[] = ['xsi:type="form:FormField"'];
+  ctx.openTag('items', attrs);
+
+  ctx.simpleElement('name', col.name);
   if (col.id.xmlId && col.id.xmlId !== '0') {
-    attrs.push(`id="${escapeXml(col.id.xmlId)}"`);
+    ctx.simpleElement('id', col.id.xmlId);
   }
-  attrs.push(`name="${escapeXml(col.name)}"`);
-
-  ctx.openTag('elements', attrs);
-
-  ctx.simpleElement('kind', 'InputField');
+  ctx.simpleElement('type', 'InputField');
 
   serializeLocalizedString(ctx, 'title', col.caption);
 
-  if (col.dataPath) ctx.simpleElement('dataPath', col.dataPath);
+  serializeDataPath(ctx, col.dataPath);
   if (col.visible !== undefined) ctx.simpleElement('visible', String(col.visible));
   if (col.readOnly !== undefined) ctx.simpleElement('readOnly', String(col.readOnly));
   if (col.width !== undefined) ctx.simpleElement('width', String(col.width));
@@ -330,25 +388,39 @@ function serializeTableColumn(ctx: SerializerContext, col: TableColumn): void {
   if (col.format) ctx.simpleElement('format', col.format);
   if (col.footerText) ctx.simpleElement('footerText', col.footerText);
 
-  ctx.closeTag('elements');
+  ctx.closeTag('items');
 }
 
-// Common properties serialization delegated to serializer-utils.ts
+// ─── Helper Functions ───
+
+function serializeChildItems(ctx: SerializerContext, children: FormNode[]): void {
+  for (const child of children) {
+    serializeItem(ctx, child);
+  }
+}
+
+function serializePreservedXml(ctx: SerializerContext, preserved?: Record<string, string>): void {
+  if (!preserved) return;
+  for (const [key, json] of Object.entries(preserved)) {
+    ctx.appendRawLine(tryParseStoredXml(json, key, ctx.currentIndent()));
+  }
+}
 
 // ─── Form Attributes ───
 
 function serializeFormAttribute(ctx: SerializerContext, attr: FormAttribute): void {
-  const attrs: string[] = [];
-  if (attr.id.xmlId && attr.id.xmlId !== '0') {
-    attrs.push(`uuid="${escapeXml(attr.id.xmlId)}"`);
-  }
-  ctx.openTag('attributes', attrs);
+  ctx.openTag('attributes');
 
   ctx.simpleElement('name', attr.name);
+  if (attr.id.xmlId && attr.id.xmlId !== '0') {
+    ctx.simpleElement('id', attr.id.xmlId);
+  }
 
   if (attr.main !== undefined) ctx.simpleElement('main', String(attr.main));
   if (attr.savedData !== undefined) ctx.simpleElement('savedData', String(attr.savedData));
-  if (attr.dataPath) ctx.simpleElement('dataPath', attr.dataPath);
+  if (attr.dataPath) {
+    serializeDataPath(ctx, attr.dataPath);
+  }
 
   if (attr.valueType) {
     ctx.openTag('valueType');
@@ -378,15 +450,23 @@ function serializeFormAttribute(ctx: SerializerContext, attr: FormAttribute): vo
 // ─── Form Commands ───
 
 function serializeFormCommand(ctx: SerializerContext, cmd: FormCommand): void {
-  const attrs: string[] = [];
-  if (cmd.id.xmlId && cmd.id.xmlId !== '0') {
-    attrs.push(`uuid="${escapeXml(cmd.id.xmlId)}"`);
-  }
-  ctx.openTag('commands', attrs);
+  ctx.openTag('formCommands');
 
   ctx.simpleElement('name', cmd.name);
+  if (cmd.id.xmlId && cmd.id.xmlId !== '0') {
+    ctx.simpleElement('id', cmd.id.xmlId);
+  }
+
   serializeLocalizedString(ctx, 'title', cmd.title);
-  ctx.simpleElement('action', cmd.action);
+
+  // Action: always serialize structurally to ensure round-trip correctness
+  if (cmd.action) {
+    ctx.openTag('action', ['xsi:type="form:FormCommandHandlerContainer"']);
+    ctx.openTag('handler');
+    ctx.simpleElement('name', cmd.action);
+    ctx.closeTag('handler');
+    ctx.closeTag('action');
+  }
 
   if (cmd.picture) serializePictureRef(ctx, 'picture', cmd.picture);
   serializeLocalizedString(ctx, 'toolTip', cmd.toolTip);
@@ -396,10 +476,10 @@ function serializeFormCommand(ctx: SerializerContext, cmd: FormCommand): void {
   if (cmd.modifiesStoredData !== undefined) ctx.simpleElement('modifiesStoredData', String(cmd.modifiesStoredData));
   if (cmd.shortcut) ctx.simpleElement('shortcut', cmd.shortcut);
 
-  ctx.closeTag('commands');
+  ctx.closeTag('formCommands');
 }
 
-// Helpers (serializeLocalizedString, serializePictureRef, etc.) imported from serializer-utils.ts
+// ─── Form Root Properties ───
 
 function serializeFormRootProperties(ctx: SerializerContext, props?: import('../model/form-model').FormRootProperties): void {
   if (!props) return;
@@ -409,12 +489,6 @@ function serializeFormRootProperties(ctx: SerializerContext, props?: import('../
   if (props.autoTitle !== undefined) ctx.simpleElement('autoTitle', String(props.autoTitle));
   if (props.autoUrl !== undefined) ctx.simpleElement('autoUrl', String(props.autoUrl));
   if (props.group) serializeGroupType(ctx, props.group);
-}
-
-function serializeChildren(ctx: SerializerContext, children: FormNode[]): void {
-  for (const child of children) {
-    serializeElement(ctx, child);
-  }
 }
 
 function insertUnknownBlock(
@@ -428,5 +502,3 @@ function insertUnknownBlock(
     ctx.appendRawLine(tryParseStoredXml(block.xml, key, ctx.currentIndent()));
   }
 }
-
-// SerializerContext, escapeXml, capitalizeFirst, tryParseStoredXml imported from serializer-utils.ts

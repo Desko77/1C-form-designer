@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form:Form xmlns:form="http://g5.1c.ru/v8/dt/form"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:core="http://g5.1c.ru/v8/dt/mcore"
+  uuid="c2d3e4f5-a6b7-8901-cdef-234567890123">
+  <title>
+    <key>ru</key>
+    <value>Форма списка</value>
+  </title>
+  <items xsi:type="form:FormGroup">
+    <name>СтраницыОсновные</name>
+    <id>10</id>
+    <type>Pages</type>
+    <items xsi:type="form:FormGroup">
+      <name>СтраницаОсновная</name>
+      <id>11</id>
+      <type>Page</type>
+      <title>
+        <key>ru</key>
+        <value>Основная</value>
+      </title>
+      <items xsi:type="form:FormField">
+        <name>ПолеНаСтранице</name>
+        <id>12</id>
+        <type>InputField</type>
+        <dataPath xsi:type="form:DataPath">
+          <segments>Объект.Поле</segments>
+        </dataPath>
+      </items>
+      <items xsi:type="form:FormField">
+        <name>ФлагОтбора</name>
+        <id>13</id>
+        <type>CheckBoxField</type>
+      </items>
+    </items>
+    <items xsi:type="form:FormGroup">
+      <name>СтраницаДополнительная</name>
+      <id>14</id>
+      <type>Page</type>
+      <title>
+        <key>ru</key>
+        <value>Дополнительная</value>
+      </title>
+    </items>
+  </items>
+  <items xsi:type="form:FormTable">
+    <name>ТаблицаТовары</name>
+    <id>20</id>
+    <dataPath xsi:type="form:DataPath">
+      <segments>Объект.Товары</segments>
+    </dataPath>
+    <items xsi:type="form:FormField">
+      <name>ТоварыНоменклатура</name>
+      <id>21</id>
+      <type>InputField</type>
+      <dataPath xsi:type="form:DataPath">
+        <segments>Объект.Товары.Номенклатура</segments>
+      </dataPath>
+    </items>
+    <items xsi:type="form:FormField">
+      <name>ТоварыКоличество</name>
+      <id>22</id>
+      <type>InputField</type>
+      <dataPath xsi:type="form:DataPath">
+        <segments>Объект.Товары.Количество</segments>
+      </dataPath>
+    </items>
+  </items>
+  <attributes>
+    <name>Объект</name>
+    <id>0</id>
+    <main>true</main>
+  </attributes>
+  <formCommands>
+    <name>Обновить</name>
+    <id>c2</id>
+    <title>
+      <key>ru</key>
+      <value>Обновить</value>
+    </title>
+    <action xsi:type="form:FormCommandHandlerContainer">
+      <handler>
+        <name>Обновить</name>
+      </handler>
+    </action>
+    <modifiesStoredData>false</modifiesStoredData>
+  </formCommands>
+</form:Form>

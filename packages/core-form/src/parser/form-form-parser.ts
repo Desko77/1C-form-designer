@@ -1,6 +1,17 @@
 /**
- * XML Parser: transforms 1C managed form XML (mdclass format) into FormModel.
- * Tolerant mode: produces diagnostics instead of crashing on unknown structures.
+ * Parser for Form.form (EDT workspace format).
+ *
+ * Key differences from mdclass format:
+ * - Root: <form:Form> (not <mdclass:ManagedForm>)
+ * - Elements container: <items> (not <elements>)
+ * - Type tag: <type> (not <kind>)
+ * - Name/ID: child elements <name>, <id> (not XML attributes)
+ * - DataPath: <dataPath xsi:type="form:DataPath"><segments>value</segments></dataPath>
+ * - Handlers: <handlers><event>…</event><name>handler</name></handlers>
+ * - Commands: <formCommands> (not <commands>)
+ * - Action: complex <action xsi:type="form:FormCommandHandlerContainer">
+ * - AutoCommandBar: separate <autoCommandBar> tag
+ * - Nested extendedTooltip, contextMenu, extInfo → preserved in preservedXml
  */
 
 import { XMLParser } from 'fast-xml-parser';
@@ -29,11 +40,8 @@ import type {
   AutoCommandBarNode,
   UnknownElementNode,
 } from '../model/form-model';
-import {
-  XML_TO_MODEL_KIND,
-  XML_KIND_TO_FIELD_TYPE,
-  XML_KIND_TO_DECORATION_TYPE,
-} from './xml-mapping';
+import { XML_KIND_TO_FIELD_TYPE, XML_KIND_TO_DECORATION_TYPE } from './xml-mapping';
+import { FORM_FORM_TO_MODEL_KIND } from './form-form-mapping';
 import {
   extractText,
   parseBool,
@@ -42,18 +50,12 @@ import {
   ensureArray,
   parseLocalizedString,
   parsePictureRef,
-  parseFontRef,
-  parseColorRef,
   parseGroupType,
   parseLayoutProps,
   parseStyleProps,
-  parseBindingProps,
-  parseBaseProperties as parseBasePropertiesShared,
 } from './parser-utils';
-import type { RawElement, BaseProps } from './parser-utils';
-import type { ParseResult, ParseDiagnostic } from './parser-utils';
-
-export type { ParseResult, ParseDiagnostic };
+import type { RawElement, ParseDiagnostic, BaseProps } from './parser-utils';
+import type { ParseResult } from './parser-utils';
 
 const xmlParserOptions = {
   ignoreAttributes: false,
@@ -63,11 +65,14 @@ const xmlParserOptions = {
   trimValues: false,
   parseTagValue: false,
   isArray: (name: string) => {
-    return ['elements', 'handlers', 'attributes', 'commands', 'columns', 'usePurposes'].includes(name);
+    return [
+      'items', 'handlers', 'attributes', 'formCommands',
+      'columns', 'usePurposes', 'autoCommandBar',
+    ].includes(name);
   },
 };
 
-export function parseXmlToModel(xml: string, uri?: string): ParseResult {
+export function parseFormFormToModel(xml: string, uri?: string): ParseResult {
   const diagnostics: ParseDiagnostic[] = [];
   const parser = new XMLParser(xmlParserOptions);
 
@@ -81,21 +86,21 @@ export function parseXmlToModel(xml: string, uri?: string): ParseResult {
     };
   }
 
-  // Find root element (mdclass:ManagedForm or ManagedForm)
+  // Find root element: form:Form
   const rootKey = Object.keys(parsed).find(
-    (k) => k === 'mdclass:ManagedForm' || k === 'ManagedForm' || k.endsWith(':ManagedForm'),
+    (k) => k === 'form:Form' || k.endsWith(':Form'),
   );
 
   if (!rootKey) {
     return {
       model: createEmptyModel(),
-      diagnostics: [{ severity: 'error', message: 'Root element <ManagedForm> not found' }],
+      diagnostics: [{ severity: 'error', message: 'Root element <form:Form> not found' }],
     };
   }
 
   const rawRoot = parsed[rootKey] as RawElement;
 
-  // Extract namespaces from attributes
+  // Extract namespaces
   const xmlNamespaces: Record<string, string> = {};
   for (const [key, val] of Object.entries(rawRoot)) {
     if (key.startsWith('@_xmlns:') || key === '@_xmlns') {
@@ -104,37 +109,59 @@ export function parseXmlToModel(xml: string, uri?: string): ParseResult {
     }
   }
 
+  // Derive form name from URI (Form.form files don't embed form name in XML)
+  let formName = 'UnnamedForm';
+  if (uri) {
+    const match = uri.match(/[/\\]([^/\\]+)[/\\]Forms?[/\\]([^/\\]+)[/\\]/i);
+    if (match) {
+      formName = match[2];
+    } else {
+      // Fallback: use parent directory name
+      const segments = uri.replace(/\\/g, '/').split('/');
+      const formIdx = segments.findIndex((s) => s === 'Form.form');
+      if (formIdx > 0) {
+        formName = segments[formIdx - 1];
+      }
+    }
+  }
+
   const meta: FormMeta = {
     origin: uri ? { uri } : undefined,
     formatting: { mode: 'preserve' },
     xmlNamespaces,
-    exportFormat: 'edt',
+    exportFormat: 'edt-form',
     platformVersion: extractText(rawRoot['platformVersion']),
   };
 
-  // Parse form name
-  const formName = extractText(rawRoot['n']) || extractText(rawRoot['name']) || 'UnnamedForm';
-
-  // Form root identity
   const formId: NodeIdentity = {
     xmlId: String(rawRoot['@_uuid'] || '0'),
     internalId: randomUUID(),
   };
 
-  // Parse children elements
-  const rawElements = ensureArray(rawRoot['elements']);
+  // Parse children (items)
+  const rawItems = ensureArray(rawRoot['items']);
   const children: FormNode[] = [];
   let autoCommandBar: AutoCommandBarNode | undefined;
 
-  for (const rawEl of rawElements) {
+  for (const rawEl of rawItems) {
     if (!rawEl || typeof rawEl !== 'object') continue;
-    const node = parseElement(rawEl as RawElement, diagnostics);
+    const node = parseItem(rawEl as RawElement, diagnostics);
     if (node) {
       if (node.kind === 'autoCommandBar') {
         autoCommandBar = node as AutoCommandBarNode;
       } else {
         children.push(node);
       }
+    }
+  }
+
+  // Also check for dedicated <autoCommandBar> tag
+  const rawAutoCmd = rawRoot['autoCommandBar'];
+  if (rawAutoCmd && !autoCommandBar) {
+    const acRaw = Array.isArray(rawAutoCmd) ? rawAutoCmd[0] : rawAutoCmd;
+    if (acRaw && typeof acRaw === 'object') {
+      const acNode = parseAutoCommandBarItem(acRaw as RawElement, diagnostics);
+      if (acNode) autoCommandBar = acNode;
     }
   }
 
@@ -148,11 +175,22 @@ export function parseXmlToModel(xml: string, uri?: string): ParseResult {
     formProperties: parseFormRootProperties(rawRoot),
   };
 
+  // Preserve root-level handlers and extInfo
+  const rootPreserved: Record<string, string> = {};
+  for (const preserveKey of ['handlers', 'extInfo', 'commandInterface']) {
+    if (rawRoot[preserveKey]) {
+      rootPreserved[preserveKey] = JSON.stringify(rawRoot[preserveKey]);
+    }
+  }
+  if (Object.keys(rootPreserved).length > 0) {
+    formRoot.preservedXml = rootPreserved;
+  }
+
   // Parse attributes
   const attributes = parseFormAttributes(ensureArray(rawRoot['attributes']), diagnostics);
 
-  // Parse commands
-  const commands = parseFormCommands(ensureArray(rawRoot['commands']), diagnostics);
+  // Parse commands (formCommands in Form.form)
+  const commands = parseFormCommands(ensureArray(rawRoot['formCommands']), diagnostics);
 
   // Collect unknown top-level blocks
   const unknownBlocks = collectUnknownTopLevel(rawRoot, diagnostics);
@@ -180,29 +218,28 @@ function createEmptyModel(): FormModel {
   };
 }
 
-// ─── Element Parsing ───
+// ─── Item Parsing ───
 
-function parseElement(raw: RawElement, diagnostics: ParseDiagnostic[]): FormNode | null {
-  const xsiType = String(raw['@_xsi:type'] || raw['@_type'] || '');
-  const xmlKind = extractText(raw['kind']) || '';
-  const id = String(raw['@_id'] || raw['@_uuid'] || '0');
-  const name = String(raw['@_name'] || '') || extractText(raw['name']) || extractText(raw['n']) || '';
+function parseItem(raw: RawElement, diagnostics: ParseDiagnostic[]): FormNode | null {
+  const xsiType = String(raw['@_xsi:type'] || '');
+  const typeVal = extractText(raw['type']) || '';
+  const id = extractText(raw['id']) || String(raw['@_id'] || '0');
+  const name = extractText(raw['name']) || '';
 
   // Resolve model kind
-  const typeMap = XML_TO_MODEL_KIND[xsiType];
+  const typeMap = FORM_FORM_TO_MODEL_KIND[xsiType];
   let modelKind: string | undefined;
 
   if (typeMap) {
-    modelKind = typeMap[xmlKind] || typeMap['*'];
+    modelKind = typeMap[typeVal] || typeMap['*'];
   }
 
   if (!modelKind) {
-    // Tier 3: unknown element
     diagnostics.push({
       severity: 'info',
-      message: `Unknown element type: xsi:type="${xsiType}", kind="${xmlKind}", name="${name}" — preserved as UnknownElementNode`,
+      message: `Unknown element type: xsi:type="${xsiType}", type="${typeVal}", name="${name}" — preserved as UnknownElementNode`,
     });
-    return parseUnknownElement(raw, xsiType, xmlKind, id, name);
+    return parseUnknownItem(raw, xsiType, typeVal, id, name);
   }
 
   const identity: NodeIdentity = {
@@ -210,7 +247,7 @@ function parseElement(raw: RawElement, diagnostics: ParseDiagnostic[]): FormNode
     internalId: randomUUID(),
   };
 
-  const baseProps = parseBaseProperties(raw);
+  const baseProps = parseBaseProps(raw);
 
   switch (modelKind) {
     case 'usualGroup':
@@ -224,11 +261,11 @@ function parseElement(raw: RawElement, diagnostics: ParseDiagnostic[]): FormNode
     case 'commandBar':
       return parseCommandBar(raw, identity, name, baseProps, diagnostics);
     case 'autoCommandBar':
-      return parseAutoCommandBar(raw, identity, name, baseProps, diagnostics);
+      return parseAutoCommandBarNode(raw, identity, name, baseProps, diagnostics);
     case 'field':
-      return parseField(raw, identity, name, xmlKind, baseProps, diagnostics);
+      return parseField(raw, identity, name, typeVal, baseProps);
     case 'decoration':
-      return parseDecoration(raw, identity, name, xmlKind, baseProps);
+      return parseDecoration(raw, identity, name, typeVal, baseProps);
     case 'button':
       return parseButton(raw, identity, name, baseProps);
     case 'table':
@@ -238,21 +275,20 @@ function parseElement(raw: RawElement, diagnostics: ParseDiagnostic[]): FormNode
   }
 }
 
-function parseUnknownElement(
+function parseUnknownItem(
   raw: RawElement,
   xsiType: string,
-  xmlKind: string,
+  typeVal: string,
   id: string,
   name: string,
 ): UnknownElementNode {
   const rawXml = JSON.stringify(raw);
   const childNodes: FormNode[] = [];
 
-  // Try to parse children even for unknown elements
-  const rawChildren = ensureArray(raw['elements']);
+  const rawChildren = ensureArray(raw['items']);
   for (const child of rawChildren) {
     if (child && typeof child === 'object') {
-      const node = parseElement(child as RawElement, []);
+      const node = parseItem(child as RawElement, []);
       if (node) childNodes.push(node);
     }
   }
@@ -262,11 +298,126 @@ function parseUnknownElement(
     kind: 'unknown',
     name: name || `Unknown_${id}`,
     originalXsiType: xsiType,
-    originalKind: xmlKind || undefined,
+    originalKind: typeVal || undefined,
     rawXml,
     children: childNodes.length > 0 ? childNodes : undefined,
-    ...parseBaseProperties(raw),
+    ...parseBaseProps(raw),
   };
+}
+
+// ─── Base Properties ───
+
+function parseBaseProps(raw: RawElement): BaseProps {
+  const result: BaseProps = {};
+
+  result.caption = parseLocalizedString(raw['title']);
+  result.toolTip = parseLocalizedString(raw['toolTip']);
+  result.layout = parseLayoutProps(raw);
+  result.style = parseStyleProps(raw);
+  result.events = parseHandlers(ensureArray(raw['handlers']));
+
+  // In Form.form, visible/enabled/readOnly can be complex objects or simple bools
+  result.visible = parseBoolOrDefault(raw['visible']);
+  result.enabled = parseBoolOrDefault(raw['enabled']);
+  result.readOnly = parseBoolOrDefault(raw['readOnly']);
+  result.skipOnInput = parseBoolOrDefault(raw['skipOnInput']);
+
+  if (raw['conditionalAppearance']) {
+    result.conditionalAppearance = {
+      key: 'conditionalAppearance',
+      xml: JSON.stringify(raw['conditionalAppearance']),
+    };
+  }
+
+  for (const key of Object.keys(result) as (keyof BaseProps)[]) {
+    if (result[key] === undefined) {
+      delete result[key];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * In Form.form, boolean properties like <visible> can be:
+ * - Simple: <visible>true</visible>
+ * - Complex: <visible><UserVisible>...</UserVisible></visible>
+ * We extract the simple boolean and preserve complex structures.
+ */
+function parseBoolOrDefault(val: unknown): boolean | undefined {
+  if (val === undefined || val === null) return undefined;
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'string') {
+    const s = val.toLowerCase();
+    if (s === 'true') return true;
+    if (s === 'false') return false;
+  }
+  // Complex structure — extract inner boolean if possible
+  if (typeof val === 'object') {
+    const obj = val as RawElement;
+    // Some Form.form files use a structure like {#text: "true"}
+    if ('#text' in obj) {
+      return parseBool(obj['#text']);
+    }
+  }
+  return undefined;
+}
+
+function parseHandlers(handlers: unknown[]): import('../model/form-model').EventBinding[] | undefined {
+  if (!handlers || handlers.length === 0) return undefined;
+  const events: import('../model/form-model').EventBinding[] = [];
+  for (const h of handlers) {
+    if (!h || typeof h !== 'object') continue;
+    const raw = h as RawElement;
+    const event = extractText(raw['event']);
+    if (!event) continue;
+    events.push({
+      event,
+      handler: extractText(raw['name']) || extractText(raw['n']) || undefined,
+    });
+  }
+  return events.length > 0 ? events : undefined;
+}
+
+// ─── DataPath extraction ───
+
+function extractDataPath(raw: RawElement): string | undefined {
+  const dp = raw['dataPath'];
+  if (!dp) return undefined;
+
+  if (typeof dp === 'string') return dp;
+
+  if (typeof dp === 'object') {
+    const obj = dp as RawElement;
+    // Form.form pattern: <dataPath xsi:type="form:DataPath"><segments>value</segments></dataPath>
+    const segments = extractText(obj['segments']);
+    if (segments) return segments;
+
+    // Fallback: direct text
+    return extractText(dp);
+  }
+
+  return undefined;
+}
+
+// ─── Preserved XML collector ───
+
+function collectPreservedXml(raw: RawElement): Record<string, string> | undefined {
+  const preserved: Record<string, string> = {};
+  const preserveKeys = ['extendedTooltip', 'contextMenu', 'extInfo', 'searchStringAddition', 'viewStatusAddition', 'searchControlAddition'];
+
+  for (const key of preserveKeys) {
+    if (raw[key] !== undefined) {
+      preserved[key] = JSON.stringify(raw[key]);
+    }
+  }
+
+  // Also preserve userVisible, which can be complex
+  if (raw['userVisible'] !== undefined) {
+    preserved['userVisible'] = JSON.stringify(raw['userVisible']);
+  }
+
+  return Object.keys(preserved).length > 0 ? preserved : undefined;
 }
 
 // ─── Container Parsers ───
@@ -278,7 +429,7 @@ function parseUsualGroup(
   base: BaseProps,
   diagnostics: ParseDiagnostic[],
 ): UsualGroupNode {
-  const children = parseChildElements(raw, diagnostics);
+  const children = parseChildItems(raw, diagnostics);
   return {
     ...base,
     id,
@@ -292,6 +443,7 @@ function parseUsualGroup(
     showTitle: parseBool(raw['showTitle']),
     collapsible: parseBool(raw['collapsible']),
     collapsed: parseBool(raw['collapsed']),
+    preservedXml: collectPreservedXml(raw),
   };
 }
 
@@ -302,7 +454,7 @@ function parsePagesGroup(
   base: BaseProps,
   diagnostics: ParseDiagnostic[],
 ): PagesNode {
-  const children = parseChildElements(raw, diagnostics).filter(
+  const children = parseChildItems(raw, diagnostics).filter(
     (c): c is PageNode => c.kind === 'page',
   );
   return {
@@ -314,6 +466,7 @@ function parsePagesGroup(
     pagesRepresentation: parseEnum(extractText(raw['pagesRepresentation']), [
       'none', 'tabsOnTop', 'tabsOnBottom', 'tabsOnLeft', 'tabsOnRight',
     ]) as PagesNode['pagesRepresentation'],
+    preservedXml: collectPreservedXml(raw),
   };
 }
 
@@ -324,7 +477,7 @@ function parsePageGroup(
   base: BaseProps,
   diagnostics: ParseDiagnostic[],
 ): PageNode {
-  const children = parseChildElements(raw, diagnostics);
+  const children = parseChildItems(raw, diagnostics);
   return {
     ...base,
     id,
@@ -333,6 +486,7 @@ function parsePageGroup(
     children,
     group: parseGroupType(raw['group']),
     picture: parsePictureRef(raw['picture']),
+    preservedXml: collectPreservedXml(raw),
   };
 }
 
@@ -343,7 +497,7 @@ function parseColumnGroup(
   base: BaseProps,
   diagnostics: ParseDiagnostic[],
 ): ColumnGroupNode {
-  const children = parseChildElements(raw, diagnostics);
+  const children = parseChildItems(raw, diagnostics);
   return {
     ...base,
     id,
@@ -351,6 +505,7 @@ function parseColumnGroup(
     name,
     children,
     group: parseGroupType(raw['group']),
+    preservedXml: collectPreservedXml(raw),
   };
 }
 
@@ -361,7 +516,7 @@ function parseCommandBar(
   base: BaseProps,
   diagnostics: ParseDiagnostic[],
 ): CommandBarNode {
-  const children = parseChildElements(raw, diagnostics) as (ButtonNode | AutoCommandBarNode)[];
+  const children = parseChildItems(raw, diagnostics) as (ButtonNode | AutoCommandBarNode)[];
   return {
     ...base,
     id,
@@ -369,23 +524,44 @@ function parseCommandBar(
     name,
     children,
     commandSource: extractText(raw['commandSource']),
+    preservedXml: collectPreservedXml(raw),
   };
 }
 
-function parseAutoCommandBar(
+function parseAutoCommandBarNode(
   raw: RawElement,
   id: NodeIdentity,
   name: string,
   base: BaseProps,
   diagnostics: ParseDiagnostic[],
 ): AutoCommandBarNode {
-  const children = parseChildElements(raw, diagnostics) as ButtonNode[];
+  const children = parseChildItems(raw, diagnostics) as ButtonNode[];
   return {
     ...base,
     id,
     kind: 'autoCommandBar',
     name,
     children,
+    preservedXml: collectPreservedXml(raw),
+  };
+}
+
+function parseAutoCommandBarItem(
+  raw: RawElement,
+  diagnostics: ParseDiagnostic[],
+): AutoCommandBarNode | null {
+  const id = extractText(raw['id']) || String(raw['@_id'] || '0');
+  const name = extractText(raw['name']) || 'АвтоКоманднаяПанель';
+  const identity: NodeIdentity = { xmlId: id, internalId: randomUUID() };
+  const base = parseBaseProps(raw);
+  const children = parseChildItems(raw, diagnostics) as ButtonNode[];
+  return {
+    ...base,
+    id: identity,
+    kind: 'autoCommandBar',
+    name,
+    children,
+    preservedXml: collectPreservedXml(raw),
   };
 }
 
@@ -395,18 +571,17 @@ function parseField(
   raw: RawElement,
   id: NodeIdentity,
   name: string,
-  xmlKind: string,
+  typeVal: string,
   base: BaseProps,
-  _diagnostics: ParseDiagnostic[],
 ): FieldNode {
-  const fieldType = (XML_KIND_TO_FIELD_TYPE[xmlKind] || 'input') as FieldType;
+  const fieldType = (XML_KIND_TO_FIELD_TYPE[typeVal] || 'input') as FieldType;
   return {
     ...base,
     id,
     kind: 'field',
     name,
     fieldType,
-    dataPath: extractText(raw['dataPath']),
+    dataPath: extractDataPath(raw),
     mask: extractText(raw['mask']),
     inputHint: extractText(raw['inputHint']),
     multiLine: parseBool(raw['multiLine']),
@@ -415,6 +590,7 @@ function parseField(
     clearButton: parseBool(raw['clearButton']),
     format: extractText(raw['format']),
     typeLink: extractText(raw['typeLink']),
+    preservedXml: collectPreservedXml(raw),
   };
 }
 
@@ -422,7 +598,7 @@ function parseDecoration(
   raw: RawElement,
   id: NodeIdentity,
   name: string,
-  xmlKind: string,
+  typeVal: string,
   base: BaseProps,
 ): DecorationNode {
   return {
@@ -430,9 +606,10 @@ function parseDecoration(
     id,
     kind: 'decoration',
     name,
-    decorationType: XML_KIND_TO_DECORATION_TYPE[xmlKind] || 'label',
+    decorationType: XML_KIND_TO_DECORATION_TYPE[typeVal] || 'label',
     picture: parsePictureRef(raw['picture']),
     hyperlink: parseBool(raw['hyperlink']),
+    preservedXml: collectPreservedXml(raw),
   };
 }
 
@@ -454,6 +631,7 @@ function parseButton(
       'auto', 'text', 'picture', 'textPicture',
     ]) as ButtonNode['representation'],
     onlyInCommandBar: parseBool(raw['onlyInCommandBar']),
+    preservedXml: collectPreservedXml(raw),
   };
 }
 
@@ -464,24 +642,22 @@ function parseTable(
   base: BaseProps,
   diagnostics: ParseDiagnostic[],
 ): TableNode {
-  // Table children are columns in XML, but can also contain nested elements
-  const rawElements = ensureArray(raw['elements']);
+  const rawItems = ensureArray(raw['items']);
   const columns: TableColumn[] = [];
   let commandBar: CommandBarNode | undefined;
 
-  for (const rawEl of rawElements) {
+  for (const rawEl of rawItems) {
     if (!rawEl || typeof rawEl !== 'object') continue;
     const el = rawEl as RawElement;
     const xsiType = String(el['@_xsi:type'] || '');
-    const kind = extractText(el['kind']) || '';
+    const typeVal = extractText(el['type']) || '';
 
-    if (xsiType === 'FormGroup' && (kind === 'CommandBar' || kind === 'AutoCommandBar')) {
-      const node = parseElement(el, diagnostics);
+    if (xsiType === 'form:FormGroup' && (typeVal === 'CommandBar' || typeVal === 'AutoCommandBar')) {
+      const node = parseItem(el, diagnostics);
       if (node && node.kind === 'commandBar') {
         commandBar = node as CommandBarNode;
       }
     } else {
-      // Table columns are FormField elements inside a table
       columns.push(parseTableColumn(el));
     }
   }
@@ -499,7 +675,7 @@ function parseTable(
     id,
     kind: 'table',
     name,
-    dataPath: extractText(raw['dataPath']),
+    dataPath: extractDataPath(raw),
     columns,
     commandBar,
     searchStringLocation: parseEnum(extractText(raw['searchStringLocation']), [
@@ -514,19 +690,20 @@ function parseTable(
     headerFixing: parseEnum(extractText(raw['headerFixing']), [
       'none', 'fixHeader',
     ]) as TableNode['headerFixing'],
+    preservedXml: collectPreservedXml(raw),
   };
 }
 
 function parseTableColumn(raw: RawElement): TableColumn {
-  const id = String(raw['@_id'] || raw['@_uuid'] || '0');
-  const name = String(raw['@_name'] || '') || extractText(raw['name']) || extractText(raw['n']) || '';
+  const id = extractText(raw['id']) || String(raw['@_id'] || '0');
+  const name = extractText(raw['name']) || '';
   return {
     id: { xmlId: id, internalId: randomUUID() },
     name,
     caption: parseLocalizedString(raw['title']),
-    dataPath: extractText(raw['dataPath']),
-    visible: parseBool(raw['visible']),
-    readOnly: parseBool(raw['readOnly']),
+    dataPath: extractDataPath(raw),
+    visible: parseBoolOrDefault(raw['visible']),
+    readOnly: parseBoolOrDefault(raw['readOnly']),
     width: parseNumber(raw['width']),
     minWidth: parseNumber(raw['minWidth']),
     maxWidth: parseNumber(raw['maxWidth']),
@@ -539,11 +716,17 @@ function parseTableColumn(raw: RawElement): TableColumn {
   };
 }
 
-// ─── Base Properties ───
-// Delegates to shared parser-utils, aliased as parseBaseProperties for local use
+// ─── Child Items ───
 
-function parseBaseProperties(raw: RawElement): BaseProps {
-  return parseBasePropertiesShared(raw);
+function parseChildItems(raw: RawElement, diagnostics: ParseDiagnostic[]): FormNode[] {
+  const rawItems = ensureArray(raw['items']);
+  const children: FormNode[] = [];
+  for (const rawEl of rawItems) {
+    if (!rawEl || typeof rawEl !== 'object') continue;
+    const node = parseItem(rawEl as RawElement, diagnostics);
+    if (node) children.push(node);
+  }
+  return children;
 }
 
 // ─── Form Attributes ───
@@ -559,8 +742,8 @@ function parseFormAttributes(rawAttrs: unknown[], diagnostics: ParseDiagnostic[]
 }
 
 function parseFormAttribute(raw: RawElement, diagnostics: ParseDiagnostic[]): FormAttribute | null {
-  const id = String(raw['@_id'] || raw['@_uuid'] || '0');
-  const name = String(raw['@_name'] || '') || extractText(raw['name']) || extractText(raw['n']) || '';
+  const id = extractText(raw['id']) || String(raw['@_id'] || raw['@_uuid'] || '0');
+  const name = extractText(raw['name']) || '';
   if (!name) return null;
 
   const children = parseFormAttributes(ensureArray(raw['attributes']), diagnostics);
@@ -571,7 +754,7 @@ function parseFormAttribute(raw: RawElement, diagnostics: ParseDiagnostic[]): Fo
     valueType: parseValueType(raw['valueType']),
     main: parseBool(raw['main']),
     savedData: parseBool(raw['savedData']),
-    dataPath: extractText(raw['dataPath']),
+    dataPath: extractDataPath(raw),
     children: children.length > 0 ? children : undefined,
   };
 }
@@ -613,16 +796,32 @@ function parseFormCommands(rawCmds: unknown[], diagnostics: ParseDiagnostic[]): 
 }
 
 function parseFormCommand(raw: RawElement, _diagnostics: ParseDiagnostic[]): FormCommand | null {
-  const id = String(raw['@_id'] || raw['@_uuid'] || '0');
-  const name = String(raw['@_name'] || '') || extractText(raw['name']) || extractText(raw['n']) || '';
-  const action = extractText(raw['action']) || '';
+  const id = extractText(raw['id']) || String(raw['@_id'] || raw['@_uuid'] || '0');
+  const name = extractText(raw['name']) || '';
   if (!name) return null;
+
+  // Action in Form.form can be complex: <action xsi:type="form:FormCommandHandlerContainer">
+  let action = '';
+  let actionRaw: string | undefined;
+  const rawAction = raw['action'];
+  if (rawAction && typeof rawAction === 'object') {
+    const actionObj = rawAction as RawElement;
+    // Extract handler name from <handler><name>...</name></handler>
+    const handler = actionObj['handler'];
+    if (handler && typeof handler === 'object') {
+      action = extractText((handler as RawElement)['name']) || '';
+    }
+    actionRaw = JSON.stringify(rawAction);
+  } else {
+    action = extractText(rawAction) || '';
+  }
 
   return {
     id: { xmlId: id, internalId: randomUUID() },
     name,
     title: parseLocalizedString(raw['title']),
     action,
+    actionRaw,
     picture: parsePictureRef(raw['picture']),
     toolTip: parseLocalizedString(raw['toolTip']),
     use: parseEnum(extractText(raw['use']), ['auto', 'always', 'never']) as FormCommand['use'],
@@ -664,10 +863,11 @@ function parseFormRootProperties(raw: RawElement): import('../model/form-model')
 // ─── Unknown Top-Level Blocks ───
 
 const KNOWN_TOP_LEVEL_KEYS = new Set([
-  'elements', 'attributes', 'commands', 'parameters', 'producedTypes',
-  'n', 'name', 'title', 'usePurposes', 'width', 'height',
+  'items', 'attributes', 'formCommands', 'autoCommandBar',
+  'name', 'title', 'usePurposes', 'width', 'height',
   'windowOpeningMode', 'autoTitle', 'autoUrl', 'group',
-  'platformVersion', 'commandInterface',
+  'platformVersion', 'commandInterface', 'handlers', 'extInfo',
+  'producedTypes', 'parameters',
 ]);
 
 function collectUnknownTopLevel(raw: RawElement, _diagnostics: ParseDiagnostic[]): UnknownBlock[] {
@@ -685,18 +885,3 @@ function collectUnknownTopLevel(raw: RawElement, _diagnostics: ParseDiagnostic[]
   }
   return blocks;
 }
-
-// ─── Child Elements ───
-
-function parseChildElements(raw: RawElement, diagnostics: ParseDiagnostic[]): FormNode[] {
-  const rawElements = ensureArray(raw['elements']);
-  const children: FormNode[] = [];
-  for (const rawEl of rawElements) {
-    if (!rawEl || typeof rawEl !== 'object') continue;
-    const node = parseElement(rawEl as RawElement, diagnostics);
-    if (node) children.push(node);
-  }
-  return children;
-}
-
-// Utility helpers are imported from parser-utils.ts
